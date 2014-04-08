@@ -34,23 +34,56 @@ combi$Dept <- as.factor(combi$Dept)
 combi$Store <- as.factor(combi$Store)
 combi$Type <- as.factor(combi$Type)
 
-#Weeks
-combi$WeekNum <- as.factor(as.integer(format(combi$Date, "%W")) + 1)
-
-#Years
-combi$Year <- as.factor(as.integer(format(combi$Date, "%y")) - 9) #1,2,3,4 format
+combi$Week <- as.factor(as.integer(format(combi$Date, "%W")))
+combi$Month <- as.factor(as.integer(format(combi$Date, "%m")))
+combi$Year <- as.factor(as.integer(format(combi$Date, "%y")))
+combi$WofM <- as.factor(as.integer(format(combi$Date, "%d"))%/% 7) 
 
 #Remove useless columns
-combi$IsHoliday <- NULL
-combi$Date <- NULL
-
 test <- combi[is.na(combi$Weekly_Sales),]
 train <- combi[!is.na(combi$Weekly_Sales),]
+rm(combi)
 
-##Cross Validation
-#index <- sample(1:nrow(train), trunc(nrow(train)/5))
-#cv <- train[index,]
-#train <- train[-index,]
+state <- data.frame()
+
+for (s in 1:45){ print(s)
+  combi1 = combi[combi$Store==s,]
+  for (d in 1:99){
+    combi2 = combi1[combi1$Dept==d,]
+    
+    test <- combi2[is.na(combi2$Weekly_Sales),]
+    train <- combi2[!is.na(combi2$Weekly_Sales),]
+    
+    if (nrow(combi2)==0 | nrow(test)==0) {next}
+        
+    for (i in 1:nrow(test)){
+      
+      te = test[i,] #tested week
+      
+      if (nrow(train[train$Week == te$Week,]) > 0) {tr = train[train$Week == te$Week,] ;k=1 }else 
+        if (nrow(train[train$Month == te$Month,]) > 0) {tr = train[train$Month == te$Month,] ;k=2 }else
+          if (nrow(train[train$WofM == te$WofM,]) > 0) {tr = train[train$WofM == te$WofM,] ;k=4 }else
+            if (nrow(combi[!is.na(combi$Weekly_Sales) & combi$Dept==d & combi$Week==te$Week,]) > 0) {tr = combi[!is.na(combi$Weekly_Sales) & combi$Dept==d & combi$Week==te$Week,] ;k=10 }else
+              if (nrow(combi[!is.na(combi$Weekly_Sales) & combi$Store==s & combi$Week==te$Week,]) > 0) {tr = combi[!is.na(combi$Weekly_Sales) & combi$Store==s & combi$Week==te$Week,] ;k=10 }
+            
+      tr.knn <- tr[c("Temperature","Fuel_Price","CPI","Unemployment")]
+      te.knn <- te[c("Temperature","Fuel_Price","CPI","Unemployment")]
+      
+      te.knn <- te.knn[,colMeans(is.na(tr.knn)) == 0] 
+      tr.knn <- tr.knn[,colMeans(is.na(te.knn)) == 0] 
+      te.knn <- te.knn[,colMeans(is.na(te.knn)) == 0] 
+      tr.knn <- tr.knn[,colMeans(is.na(tr.knn)) == 0] 
+
+      te$Weekly_Sales <- knnregTrain(tr.knn, te.knn, tr$Weekly_Sales, k=k, use.all=TRUE)
+
+      state = rbind(state, te)
+      
+    }
+  }
+}
+
+
+
 
 #K-NN
 
