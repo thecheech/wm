@@ -13,6 +13,30 @@ features <- read.csv("features.csv", stringsAsFactors=FALSE)
 test["Weekly_Sales"] <- NA
 combi <- rbind(train, test)
 
+#Converting categorical data
+combi$Date <- as.Date(combi$Date)
+combi$Dept <- as.factor(combi$Dept)
+combi$Store <- as.factor(combi$Store)
+
+#extract data from date
+combi$Week <- as.factor(as.integer(format(combi$Date, "%W")))
+combi$Month <- as.factor(as.integer(format(combi$Date, "%m")))
+combi$Year <- as.factor(as.integer(format(combi$Date, "%y")))
+combi$WofM <- as.factor(as.integer(format(combi$Date, "%d"))%/% 7) 
+
+#cluster Stores, Depts & Weeks
+source("cluster_stores.R")
+source("cluster_depts.R")
+source("cluster_weeks.R")
+
+##kknn?
+t = Sys.time()
+sales.kknn <- kknn(Weekly_Sales ~ Week + Dept + Store, 
+                   combi[!is.na(combi$Weekly_Sales),], combi[is.na(combi$Weekly_Sales) & combi$Dept==1,], distance = 2, kernel = "triangular")
+Weekly_Sales <- fitted(sales.kknn)
+Sys.time()-t
+
+
 #Seperate Weekly Sales
 Weekly_Sales <- train$Weekly_Sales
 #Weekly_Sales_cv <- cv$Weekly_Sales
@@ -28,16 +52,6 @@ combi <- merge(x=combi, y=stores, all.x=TRUE)
 combi <- merge(x=combi, y=features, all.x=TRUE)
 rm(features, stores, train, test)
 
-#Converting categorical data
-combi$Date <- as.Date(combi$Date)
-combi$Dept <- as.factor(combi$Dept)
-combi$Store <- as.factor(combi$Store)
-combi$Type <- as.factor(combi$Type)
-
-combi$Week <- as.factor(as.integer(format(combi$Date, "%W")))
-combi$Month <- as.factor(as.integer(format(combi$Date, "%m")))
-combi$Year <- as.factor(as.integer(format(combi$Date, "%y")))
-combi$WofM <- as.factor(as.integer(format(combi$Date, "%d"))%/% 7) 
 
 #Remove useless columns
 test <- combi[is.na(combi$Weekly_Sales),]
@@ -46,8 +60,8 @@ train <- combi[!is.na(combi$Weekly_Sales),]
 
 state <- data.frame()
 
-for (s in 1:45){ print(s)
-  combi1 = combi[combi$Store==s,]
+for (c in 1:5){ print(c)
+  combi1 = combi[combi$Cluster==c,]
   for (d in 1:99){
     combi2 = combi1[combi1$Dept==d,]
     
@@ -64,7 +78,7 @@ for (s in 1:45){ print(s)
         if (nrow(train[train$Month == te$Month,]) > 0) {tr = train[train$Month == te$Month,] ;k=2 }else
           if (nrow(train[train$WofM == te$WofM,]) > 0) {tr = train[train$WofM == te$WofM,] ;k=4 }else
             if (nrow(combi[!is.na(combi$Weekly_Sales) & combi$Dept==d & combi$Week==te$Week,]) > 0) {tr = combi[!is.na(combi$Weekly_Sales) & combi$Dept==d & combi$Week==te$Week,] ;k=10 }else
-              if (nrow(combi[!is.na(combi$Weekly_Sales) & combi$Store==s & combi$Week==te$Week,]) > 0) {tr = combi[!is.na(combi$Weekly_Sales) & combi$Store==s & combi$Week==te$Week,] ;k=10 }
+              if (nrow(combi[!is.na(combi$Weekly_Sales) & combi$Cluster==c & combi$Week==te$Week,]) > 0) {tr = combi[!is.na(combi$Weekly_Sales) & combi$Cluster==c & combi$Week==te$Week,] ;k=10 }
             
       tr.knn <- tr[c("Temperature","Fuel_Price","CPI","Unemployment")]
       te.knn <- te[c("Temperature","Fuel_Price","CPI","Unemployment")]
@@ -82,52 +96,6 @@ for (s in 1:45){ print(s)
   }
 }
 
-
-
-
-#K-NN
-
-X = array(NA, dim=c(45,99,53, 4))
-
-for (i in 1:nrow(train)){
-  if (i%%10000==0) {
-    print(i)
-  }
-  X[train$Store[i], train$Dept[i], train$WeekNum[i], train$Year[i]] = train$Weekly_Sales[i] 
-}
-
-Median_sales=vector()
-Mean_sales=vector()
-
-for (i in 1:nrow(test)){
-  if (i%%10000==0) {
-    print(i)
-  }
-  Median_sales[i] =  median(X[test$Store[i], test$Dept[i], test$WeekNum[i], ], na.rm = TRUE)
-  Mean_sales[i] =  mean(X[test$Store[i], test$Dept[i], test$WeekNum[i], ], na.rm = TRUE)
-}
-
-#many missing values for week 1
-
-
-
-  #Seperate Test, Train and CV:
-
-  
-  
-  require(caret)
-  fit <- knnreg(train, Weekly_Sales, k = 2)
-  Prediction <- predict(fit,  newdata=test)
-
-##Testing Correlation
-# fit <- rpart(Weekly_Sales ~ Store + Dept + Date + IsHoliday + Type + Size + Temperature + Fuel_Price + CPI + Unemployment, data=train)
-#Prediction <- predict(fit,  newdata=cv)
-#install.packages("hydroGOF")
-#require(hydroGOF)
-#mae(cv$Weekly_Sales, Prediction)
-
-##Linear Regression
-#fit <- lm(Weekly_Sales ~ Store + Dept, data=train)
 
 ##Submitting 
 fit <- rpart(Weekly_Sales ~ Store + Dept + WeekNum, data=combi[!is.na(combi$Weekly_Sales),])
