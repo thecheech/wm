@@ -3,7 +3,7 @@
 cat("\014")
 rm(list=ls(all=TRUE))
 
-setwd("/home/karp/kaggle/walmart")
+#setwd("/home/karp/kaggle/walmart")
 train <- read.csv("train.csv", stringsAsFactors=FALSE)
 test <- read.csv("test.csv", stringsAsFactors=FALSE)
 stores <- read.csv("stores.csv", stringsAsFactors=FALSE)
@@ -42,7 +42,7 @@ combi$WofM <- as.factor(as.integer(format(combi$Date, "%d"))%/% 7)
 #Remove useless columns
 test <- combi[is.na(combi$Weekly_Sales),]
 train <- combi[!is.na(combi$Weekly_Sales),]
-rm(combi)
+#rm(combi)
 
 state <- data.frame()
 
